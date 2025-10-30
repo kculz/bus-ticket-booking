@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useApp } from './context/AppContext';
 import Header from './components/Layout/Header';
 import LoginForm from './components/Auth/LoginForm';
@@ -6,30 +7,27 @@ import RegisterForm from './components/Auth/RegisterForm';
 import BusList from './components/Bus/BusList';
 import TicketList from './components/Ticket/TicketList';
 import BookingForm from './components/Ticket/BookingForm';
+import LoadingSpinner from './components/Layout/LoadingSpinner';
+import StatsDashboard from './components/Stats/StatsDashboard';
 
-function App() {
+// Protected Route Component
+const ProtectedRoute = ({ children }) => {
   const { state } = useApp();
-  const [authMode, setAuthMode] = useState('login');
+  return state.user ? children : <Navigate to="/login" />;
+};
+
+// Public Route Component (redirect to dashboard if already logged in)
+const PublicRoute = ({ children }) => {
+  const { state } = useApp();
+  return !state.user ? children : <Navigate to="/dashboard" />;
+};
+
+// Main Dashboard Component
+const Dashboard = () => {
+  const { state } = useApp();
   const [selectedBus, setSelectedBus] = useState(null);
   const [activeTab, setActiveTab] = useState('buses');
 
-  // Show auth forms if user is not logged in
-  if (!state.user) {
-    return (
-      <div className="min-h-screen bg-gray-100">
-        <Header />
-        <main className="container mx-auto px-4 py-8">
-          {authMode === 'login' ? (
-            <LoginForm onToggleMode={() => setAuthMode('register')} />
-          ) : (
-            <RegisterForm onToggleMode={() => setAuthMode('login')} />
-          )}
-        </main>
-      </div>
-    );
-  }
-
-  // Show booking form if a bus is selected
   if (selectedBus) {
     return (
       <div className="min-h-screen bg-gray-100">
@@ -48,7 +46,6 @@ function App() {
     );
   }
 
-  // Main dashboard after login
   return (
     <div className="min-h-screen bg-gray-100">
       <Header />
@@ -75,6 +72,12 @@ function App() {
           >
             My Tickets
           </button>
+          <button
+            onClick={() => window.location.href = '/reports'}
+            className="px-4 py-2 font-semibold text-gray-500 hover:text-gray-700 ml-auto"
+          >
+            View Analytics →
+          </button>
         </div>
 
         {/* Show error message if any */}
@@ -91,6 +94,82 @@ function App() {
         {activeTab === 'tickets' && <TicketList />}
       </main>
     </div>
+  );
+};
+
+// Auth Component
+const AuthPage = () => {
+  const [authMode, setAuthMode] = useState('login');
+
+  return (
+    <div className="min-h-screen bg-gray-100">
+      <Header />
+      <main className="container mx-auto px-4 py-8">
+        {authMode === 'login' ? (
+          <LoginForm onToggleMode={() => setAuthMode('register')} />
+        ) : (
+          <RegisterForm onToggleMode={() => setAuthMode('login')} />
+        )}
+      </main>
+    </div>
+  );
+};
+
+function App() {
+  const { state } = useApp();
+
+  if (state.loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  return (
+    <Router>
+      <Routes>
+        {/* Public Routes */}
+        <Route 
+          path="/login" 
+          element={
+            <PublicRoute>
+              <AuthPage />
+            </PublicRoute>
+          } 
+        />
+        <Route 
+          path="/register" 
+          element={
+            <PublicRoute>
+              <AuthPage />
+            </PublicRoute>
+          } 
+        />
+        
+        {/* Protected Routes */}
+        <Route 
+          path="/dashboard" 
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/reports" 
+          element={
+            <ProtectedRoute>
+              <StatsDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Default redirects */}
+        <Route path="/" element={<Navigate to={state.user ? "/dashboard" : "/login"} />} />
+        <Route path="*" element={<Navigate to={state.user ? "/dashboard" : "/login"} />} />
+      </Routes>
+    </Router>
   );
 }
 
