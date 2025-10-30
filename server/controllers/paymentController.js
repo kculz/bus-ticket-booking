@@ -214,7 +214,7 @@ const PaymentController = {
   },
 
   // Check payment status - make it public or handle authentication differently
-async checkPaymentStatus(req, res) {
+  async checkPaymentStatus(req, res) {
     try {
       const { reference } = req.params;
 
@@ -304,8 +304,7 @@ async checkPaymentStatus(req, res) {
               }
 
               // Send confirmation emails (don't await - send in background)
-              console.log('📧 [Backend] Attempting to send confirmation emails...');
-              PaymentController.sendPaymentConfirmationEmails(payment, payment.Ticket)
+              this.sendPaymentConfirmationEmails(payment, payment.Ticket)
                 .then(() => {
                   console.log('✅ Payment confirmation emails sent successfully');
                 })
@@ -330,6 +329,12 @@ async checkPaymentStatus(req, res) {
             
             await payment.update({ status: 'failed' });
             updateData.message = 'Payment failed';
+            updateData.success = false;
+            
+          } else if (statusResponse.status === 'sent' || statusResponse.status === 'created') {
+            console.log('🔄 [Backend] Payment in intermediate state:', statusResponse.status);
+            
+            updateData.message = 'Payment request sent - waiting for authorization';
             updateData.success = false;
             
           } else {
@@ -427,8 +432,7 @@ async checkPaymentStatus(req, res) {
               }
 
               // Send confirmation emails (don't await - send in background)
-              console.log('📧 [Webhook] Attempting to send confirmation emails...');
-              PaymentController.sendPaymentConfirmationEmails(payment, payment.Ticket)
+              this.sendPaymentConfirmationEmails(payment, payment.Ticket)
                 .then(() => {
                   console.log('✅ Webhook: Payment confirmation emails sent successfully');
                 })
@@ -481,12 +485,7 @@ async checkPaymentStatus(req, res) {
   // Helper method to send payment confirmation emails
   async sendPaymentConfirmationEmails(payment, ticket) {
     try {
-      console.log('📧 [Email Helper] Sending payment confirmation emails for ticket:', ticket.ticketNumber);
-      console.log('📧 [Email Helper] Ticket details:', {
-        ticketNumber: ticket.ticketNumber,
-        passengerEmail: ticket.passengerEmail,
-        passengerName: ticket.passengerName
-      });
+      console.log('📧 Sending payment confirmation emails for ticket:', ticket.ticketNumber);
       
       // Send ticket confirmation email
       await EmailService.sendTicketEmail(ticket.passengerEmail, ticket);
@@ -497,9 +496,10 @@ async checkPaymentStatus(req, res) {
       console.log('✅ All payment confirmation emails sent successfully');
     } catch (error) {
       console.error('❌ Error in sendPaymentConfirmationEmails:', error);
-      throw error;
+      throw error; // Re-throw to let caller handle it
     }
   },
+
   // Get payment history for user - requires authentication
   async getPaymentHistory(req, res) {
     try {
